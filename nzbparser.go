@@ -77,7 +77,7 @@ func Parse(buf io.Reader) (*Nzb, error) {
 	decoder.CharsetReader = charset.NewReaderLabel
 	decoder.Strict = false // ignore unknown or malformed character entities
 	if err := decoder.Decode(xnzb); err != nil {
-		return nil, fmt.Errorf("Unable to parse NZB file: %s", err.Error())
+		return nil, fmt.Errorf("unable to parse NZB file: %s", err.Error())
 	}
 
 	// convert to nicer format
