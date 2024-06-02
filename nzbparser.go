@@ -15,6 +15,7 @@ const (
 	// xml header for nzb files
 	Header = `<?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE nzb PUBLIC "-//newzBin//DTD NZB 1.1//EN" "http://www.newzbin.com/DTD/nzb/nzb-1.1.dtd">` + "\n"
+	Xmlns = "http://www.newzbin.com/DTD/2003/nzb"
 )
 
 // nzb file structure with additional information
@@ -127,7 +128,7 @@ func Write(nzb *Nzb) ([]byte, error) {
 	xnzb.Files = nzb.Files
 
 	// add namespace
-	xnzb.Xmlns = "http://www.newzbin.com/DTD/2003/nzb"
+	xnzb.Xmlns = Xmlns
 
 	// add metadata
 	for t, v := range nzb.Meta {
