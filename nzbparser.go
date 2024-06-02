@@ -15,18 +15,19 @@ const (
 	// xml header for nzb files
 	Header = `<?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE nzb PUBLIC "-//newzBin//DTD NZB 1.1//EN" "http://www.newzbin.com/DTD/nzb/nzb-1.1.dtd">` + "\n"
+	// xml namespace for nzb files
 	Xmlns = "http://www.newzbin.com/DTD/2003/nzb"
 )
 
 // nzb file structure with additional information
 type Nzb struct {
-	Comment       string
+	Comment       string            // comment tag
 	Meta          map[string]string // meta data as map
-	Files         NzbFiles
-	TotalFiles    int   // number of total files
-	Segments      int   // number of available segments
-	TotalSegments int   // number of total segments
-	Bytes         int64 // total size of all files
+	Files         NzbFiles          // files structure
+	TotalFiles    int               // number of total files
+	Segments      int               // number of available segments
+	TotalSegments int               // number of total segments
+	Bytes         int64             // total size of all files
 }
 
 // a slice of NzbFiles extended to allow sorting
@@ -191,6 +192,7 @@ func ScanNzbFile(nzb *Nzb) {
 
 }
 
+// clean up nzb files by merging duplicate file entries and removing duplicate segments
 func MakeUnique(nzb *Nzb) {
 	// check for duplicate file entries and combine segments
 	var uniqueFiles []NzbFile
