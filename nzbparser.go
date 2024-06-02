@@ -75,6 +75,7 @@ func Parse(buf io.Reader) (*Nzb, error) {
 	xnzb := new(xNzb)
 	decoder := xml.NewDecoder(buf)
 	decoder.CharsetReader = charset.NewReaderLabel
+	decoder.Strict = false // ignore unknown or malformed character entities
 	if err := decoder.Decode(xnzb); err != nil {
 		return nil, fmt.Errorf("Unable to parse NZB file: %s", err.Error())
 	}
