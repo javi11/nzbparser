@@ -1,0 +1,8 @@
+github.com/Tensai75/subjectparser v0.0.0-20240511081302-1e97329a5fe7 h1:ix/Vvx/MkRRmKQ4zm1BTpX6AxGqVlFiabiW7uRNlzZI=
+github.com/Tensai75/subjectparser v0.0.0-20240511081302-1e97329a5fe7/go.mod h1:1oK70GK+0ul/Ko+eRiSRzRZ86LCNnDFCg0rAiSy9wMQ=
+github.com/Tensai75/subjectparser v0.1.0 h1:6fEWnRov8lDHxJS2EWqY6VonwYfrIRN+k8h8H7fFwHA=
+github.com/Tensai75/subjectparser v0.1.0/go.mod h1:PNBFBnkOGbVDfX+56ZmC4GKSpqoRMCF1Y44xYd7NLGI=
+golang.org/x/net v0.25.0 h1:d/OCCoBEUq33pjydKrGQhw7IlUPI2Oylr+8qLx49kac=
+golang.org/x/net v0.25.0/go.mod h1:JkAGAh7GEvH74S6FOH42FLoXpXbE/aqXSrIQjXgsiwM=
+golang.org/x/text v0.15.0 h1:h1V/4gjBv8v9cjcR6+AR5+/cIYK5N/WAgiv4xlsEtAk=
+golang.org/x/text v0.15.0/go.mod h1:18ZOQIKpY8NJVqYksKHtTdi31H5itFRjB5/qKTNYzSU=
