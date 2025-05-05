@@ -44,11 +44,11 @@ type NzbFile struct {
 	Poster        string      `xml:"poster,attr"`
 	Date          int         `xml:"date,attr"`
 	Subject       string      `xml:"subject,attr"`
-	Number        int         `xml:"-"` // number of the file (if indicated in the subject)
-	Filename      string      `xml:"-"` // filename of the file (if indicated in the subject)
-	Basefilename  string      `xml:"-"` // basefilename of the file (if indicated in the subject)
-	TotalSegments int         `xml:"-"` // number of total segments
-	Bytes         int64       `xml:"-"` // total size of the file
+	Bytes         int64       `xml:"bytes,attr"` // total size of the file
+	Number        int         `xml:"-"`          // number of the file (if indicated in the subject)
+	Filename      string      `xml:"-"`          // filename of the file (if indicated in the subject)
+	Basefilename  string      `xml:"-"`          // basefilename of the file (if indicated in the subject)
+	TotalSegments int         `xml:"-"`          // number of total segments
 }
 
 // a slice of NzbSegments extended to allow sorting
