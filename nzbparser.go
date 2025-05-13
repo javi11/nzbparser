@@ -44,11 +44,12 @@ type NzbFile struct {
 	Poster        string      `xml:"poster,attr"`
 	Date          int         `xml:"date,attr"`
 	Subject       string      `xml:"subject,attr"`
-	Number        int         `xml:"-"` // number of the file (if indicated in the subject)
-	Filename      string      `xml:"-"` // filename of the file (if indicated in the subject)
-	Basefilename  string      `xml:"-"` // basefilename of the file (if indicated in the subject)
-	TotalSegments int         `xml:"-"` // number of total segments
-	Bytes         int64       `xml:"-"` // total size of the file
+	Bytes         int64       `xml:"bytes,attr"`    // total size of the file
+	Checksum      string      `xml:"checksum,attr"` // checksum of the file
+	Number        int         `xml:"-"`             // number of the file (if indicated in the subject)
+	Filename      string      `xml:"-"`             // filename of the file (if indicated in the subject)
+	Basefilename  string      `xml:"-"`             // basefilename of the file (if indicated in the subject)
+	TotalSegments int         `xml:"-"`             // number of total segments
 }
 
 // a slice of NzbSegments extended to allow sorting
@@ -62,7 +63,7 @@ func (s NzbSegments) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 type NzbSegment struct {
 	Bytes  int    `xml:"bytes,attr"`
 	Number int    `xml:"number,attr"`
-	Id     string `xml:",innerxml"`
+	ID     string `xml:",innerxml"`
 }
 
 // parse nzb file provided as string
@@ -72,12 +73,12 @@ func ParseString(data string) (*Nzb, error) {
 
 // parese nzb file provided as io.Reader buffer
 func Parse(buf io.Reader) (*Nzb, error) {
-
 	// parse nzb file into temp structure
 	xnzb := new(xNzb)
 	decoder := xml.NewDecoder(buf)
 	decoder.CharsetReader = charset.NewReaderLabel
 	decoder.Strict = false // ignore unknown or malformed character entities
+
 	if err := decoder.Decode(xnzb); err != nil {
 		return nil, fmt.Errorf("unable to parse NZB file: %s", err.Error())
 	}
@@ -103,6 +104,7 @@ func Parse(buf io.Reader) (*Nzb, error) {
 
 	// sort the files and segments
 	sort.Sort(nzb.Files)
+
 	for id := range nzb.Files {
 		sort.Sort(nzb.Files[id].Segments)
 	}
@@ -118,7 +120,6 @@ func WriteString(nzb *Nzb) (string, error) {
 
 // write nzb struct to nzb xml as byte slice
 func Write(nzb *Nzb) ([]byte, error) {
-
 	// create temp structure
 	xnzb := new(xNzb)
 
@@ -126,6 +127,7 @@ func Write(nzb *Nzb) ([]byte, error) {
 	if nzb.Comment != "" {
 		xnzb.Comment = " " + nzb.Comment + " "
 	}
+
 	xnzb.Files = nzb.Files
 
 	// add namespace
@@ -137,39 +139,45 @@ func Write(nzb *Nzb) ([]byte, error) {
 	}
 
 	// Marshal and prepend header
-	if file, err := xml.MarshalIndent(xnzb, "", "  "); err != nil {
+	file, err := xml.MarshalIndent(xnzb, "", "  ")
+	if err != nil {
 		return []byte(""), err
-	} else {
-		return append([]byte(Header), file...), nil
 	}
+
+	return append([]byte(Header), file...), nil
 }
 
 // scan the nzb struct for additional information
 func ScanNzbFile(nzb *Nzb) {
+	var segments int // total amount of available segments
 
-	var segments int      // total amount of available segments
 	var totalSegments int // theoretical total amount of segments based on the subject count
-	var totalBytes int64  // total size of all available segments
-	var totalFiles int    // theoretical total amount of files based on the subject count
+
+	var totalBytes int64 // total size of all available segments
+
+	var totalFiles int // theoretical total amount of files based on the subject count
 
 	for id, file := range nzb.Files {
-
 		var totalFileSegments int // theoretical total amount of segments of this file based on the subject count
-		var totalFileBytes int64  // total size of all available segments of this file
+
+		var totalFileBytes int64 // total size of all available segments of this file
 
 		if subject, err := subjectparser.Parse(file.Subject); err == nil {
 			nzb.Files[id].Number = subject.File
 			nzb.Files[id].Filename = subject.Filename
 			nzb.Files[id].Basefilename = subject.Basefilename
 			totalFileSegments = subject.TotalSegments
+
 			if subject.TotalFiles > totalFiles {
 				totalFiles = subject.TotalFiles
 			}
 		}
+
 		for _, segment := range file.Segments {
 			if segment.Number > totalFileSegments {
 				totalFileSegments = segment.Number
 			}
+
 			totalBytes = totalBytes + int64(segment.Bytes)
 			totalFileBytes = totalFileBytes + int64(segment.Bytes)
 		}
@@ -178,7 +186,6 @@ func ScanNzbFile(nzb *Nzb) {
 		totalSegments = totalSegments + totalFileSegments
 		nzb.Files[id].TotalSegments = totalFileSegments
 		nzb.Files[id].Bytes = totalFileBytes
-
 	}
 
 	if totalFiles < nzb.Files.Len() {
@@ -186,16 +193,17 @@ func ScanNzbFile(nzb *Nzb) {
 	} else {
 		nzb.TotalFiles = totalFiles
 	}
+
 	nzb.Segments = segments
 	nzb.TotalSegments = totalSegments
 	nzb.Bytes = totalBytes
-
 }
 
 // clean up nzb files by merging duplicate file entries and removing duplicate segments
 func MakeUnique(nzb *Nzb) {
 	// check for duplicate file entries and combine segments
 	var uniqueFiles []NzbFile
+
 	fileKeys := make(map[string]int) // helper map for unique keys
 	for _, file := range nzb.Files {
 		if i, ok := fileKeys[file.Subject]; ok {
@@ -208,19 +216,22 @@ func MakeUnique(nzb *Nzb) {
 			uniqueFiles = append(uniqueFiles, file)
 		}
 	}
+
 	nzb.Files = uniqueFiles
 
 	// remove duplicate segments
 	for i, file := range nzb.Files {
 		var uniqueSegments []NzbSegment
+
 		segmentKeys := make(map[string]int) // helper map for unique keys
 		for _, segment := range file.Segments {
-			if _, ok := segmentKeys[segment.Id]; !ok {
+			if _, ok := segmentKeys[segment.ID]; !ok {
 				// Unique key found. Record position and collect in result.
-				segmentKeys[segment.Id] = len(uniqueSegments)
+				segmentKeys[segment.ID] = len(uniqueSegments)
 				uniqueSegments = append(uniqueSegments, segment)
 			}
 		}
+
 		nzb.Files[i].Segments = uniqueSegments
 	}
 }
