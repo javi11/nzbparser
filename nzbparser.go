@@ -45,7 +45,7 @@ type NzbFile struct {
 	Date          int         `xml:"date,attr"`
 	Subject       string      `xml:"subject,attr"`
 	Bytes         int64       `xml:"bytes,attr"`    // total size of the file
-	Checksum      string      `xml:"checksum,attr"` // checksum of the file
+	FileHash      string      `xml:"filehash,attr"` // hash of the file
 	Number        int         `xml:"-"`             // number of the file (if indicated in the subject)
 	Filename      string      `xml:"-"`             // filename of the file (if indicated in the subject)
 	Basefilename  string      `xml:"-"`             // basefilename of the file (if indicated in the subject)
