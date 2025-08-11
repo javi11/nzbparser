@@ -164,8 +164,13 @@ func ScanNzbFile(nzb *Nzb) {
 
 		if subject, err := subjectparser.Parse(file.Subject); err == nil {
 			nzb.Files[id].Number = subject.File
-			nzb.Files[id].Filename = subject.Filename
-			nzb.Files[id].Basefilename = subject.Basefilename
+
+			if subject.Filename != "" {
+				nzb.Files[id].Filename = subject.Filename
+			} else {
+				nzb.Files[id].Filename = subject.Header
+			}
+
 			totalFileSegments = subject.TotalSegments
 
 			if subject.TotalFiles > totalFiles {
