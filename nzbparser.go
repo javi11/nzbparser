@@ -7,7 +7,6 @@ import (
 	"io"
 	"sort"
 
-	"github.com/Tensai75/subjectparser"
 	"golang.org/x/net/html/charset"
 )
 
@@ -162,7 +161,7 @@ func ScanNzbFile(nzb *Nzb) {
 
 		var totalFileBytes int64 // total size of all available segments of this file
 
-		if subject, err := subjectparser.Parse(file.Subject); err == nil {
+		if subject, err := ParseSubject(file.Subject); err == nil {
 			nzb.Files[id].Number = subject.File
 
 			if subject.Filename != "" {

@@ -95,6 +95,84 @@ func TestParseString(t *testing.T) {
 	}
 }
 
+func TestParseSubjectVariants(t *testing.T) {
+	testCases := []struct {
+		subject string
+		exp     Subject
+	}{
+		{
+			subject: `[04/23] "Lili.en.Marleen.S03E07.FLEMISH.1080p.WEB.h264-TRIPEL" - "lili.en.marleen.s03e07.flemish.1080p.web.h264-tripel.r00" - yEnc(1/140)`,
+			exp: Subject{
+				Header:        "Lili.en.Marleen.S03E07.FLEMISH.1080p.WEB.h264-TRIPEL",
+				Filename:      "lili.en.marleen.s03e07.flemish.1080p.web.h264-tripel.r00",
+				Basefilename:  "lili.en.marleen.s03e07.flemish.1080p.web.h264-tripel",
+				File:          4,
+				TotalFiles:    23,
+				Segment:       1,
+				TotalSegments: 140,
+			},
+		},
+		{
+			subject: `[1/2] Test Subject - "test.txt" yEnc (1/2)`,
+			exp: Subject{
+				Header:        "Test Subject",
+				Filename:      "test.txt",
+				Basefilename:  "test",
+				File:          1,
+				TotalFiles:    2,
+				Segment:       1,
+				TotalSegments: 2,
+			},
+		},
+		{
+			subject: `"singlefile.nfo" yEnc (1/1)`,
+			exp: Subject{
+				Header:        "singlefile",
+				Filename:      "singlefile.nfo",
+				Basefilename:  "singlefile",
+				File:          1,
+				TotalFiles:    1,
+				Segment:       1,
+				TotalSegments: 1,
+			},
+		},
+		{
+			subject: `Some Header - "archive.part01.rar" yEnc (12/120)`,
+			exp: Subject{
+				Header:        "Some Header",
+				Filename:      "archive.part01.rar",
+				Basefilename:  "archive",
+				File:          1, // assumed single file when not present
+				TotalFiles:    1,
+				Segment:       12,
+				TotalSegments: 120,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		parsed, err := ParseSubject(tc.subject)
+		if err != nil {
+			t.Fatalf("ParseSubject returned error for %q: %v", tc.subject, err)
+		}
+		if parsed.Header != tc.exp.Header {
+			t.Errorf("Header mismatch for %q: got %q expected %q", tc.subject, parsed.Header, tc.exp.Header)
+		}
+		if parsed.Filename != tc.exp.Filename {
+			t.Errorf("Filename mismatch for %q: got %q expected %q", tc.subject, parsed.Filename, tc.exp.Filename)
+		}
+		if parsed.Basefilename != tc.exp.Basefilename {
+			t.Errorf("Basefilename mismatch for %q: got %q expected %q", tc.subject, parsed.Basefilename, tc.exp.Basefilename)
+		}
+		if parsed.File != tc.exp.File || parsed.TotalFiles != tc.exp.TotalFiles {
+			t.Errorf("File numbers mismatch for %q: got %d/%d expected %d/%d", tc.subject, parsed.File, parsed.TotalFiles, tc.exp.File, tc.exp.TotalFiles)
+		}
+		if parsed.Segment != tc.exp.Segment || parsed.TotalSegments != tc.exp.TotalSegments {
+			t.Errorf("Segment numbers mismatch for %q: got %d/%d expected %d/%d", tc.subject, parsed.Segment, parsed.TotalSegments, tc.exp.Segment, tc.exp.TotalSegments)
+		}
+	}
+}
+
 func TestParse(t *testing.T) {
 	// Test valid NZB
 	validNZB := Header + `<nzb xmlns="http://www.newzbin.com/DTD/2003/nzb">
