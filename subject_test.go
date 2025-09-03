@@ -16,6 +16,14 @@ func TestParseSubject(t *testing.T) {
 		totalS int
 	}{
 		{
+			name:   "unicode and hyphenated suffix mkv",
+			input:  `Volt.Star.Malgré.Lui.2008.1080p.BluRay.Remux.AVC.Multi.VFF.DTS.5.1.DTS-HD.MA.5.1-GOLDEN.mkv`,
+			header: "Volt.Star.Malgré.Lui.2008.1080p.BluRay.Remux.AVC.Multi.VFF.DTS.5.1.DTS-HD.MA.5.1-GOLDEN",
+			fname:  "Volt.Star.Malgré.Lui.2008.1080p.BluRay.Remux.AVC.Multi.VFF.DTS.5.1.DTS-HD.MA.5.1-GOLDEN.mkv",
+			base:   "Volt.Star.Malgré.Lui.2008.1080p.BluRay.Remux.AVC.Multi.VFF.DTS.5.1.DTS-HD.MA.5.1-GOLDEN",
+			file:   1, totalF: 1, seg: 1, totalS: 1,
+		},
+		{
 			name:   "dual quoted release + r00",
 			input:  `[04/23] "Lili.en.Marleen.S03E07.FLEMISH.1080p.WEB.h264-TRIPEL" - "lili.en.marleen.s03e07.flemish.1080p.web.h264-tripel.r00" - yEnc(1/140)`,
 			header: "Lili.en.Marleen.S03E07.FLEMISH.1080p.WEB.h264-TRIPEL",

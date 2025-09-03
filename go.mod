@@ -2,10 +2,7 @@ module github.com/javi11/nzbparser
 
 go 1.24
 
-require (
-	github.com/Tensai75/subjectparser v0.1.0
-	golang.org/x/net v0.39.0
-)
+require golang.org/x/net v0.39.0
 
 require (
 	4d63.com/gocheckcompilerdirectives v1.3.0 // indirect

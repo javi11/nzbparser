@@ -36,21 +36,25 @@ func ParseSubject(s string) (Subject, error) {
 	// and that no relevant info apperars in the subject after them (usualy only "yEnc" and the size is stated after the segment numbers)
 	r := regexp.MustCompile(`(?i)(?:(?P<remainder>.*?) *(?:(?P<files>(?:"?\[|[<[]? *)(?P<file>\d+) */ *(?P<totalfiles>\d+) *(?:\]"?|[>\]])?)|(?P<segments>"?\((?P<segment>\d+) */ *(?P<totalsegments>\d+)\)"?))|.*$)`)
 	matches := findAllNamedMatches(r, subject.Subject)
+	foundNumbers := false
 	if matches != nil {
 		// check the matches from back to start
 		for counter := len(matches) - 1; counter >= 0; counter-- {
 			if subject.File == 0 && subject.Segment == 0 {
 				// if neither segments nor files are assigned yet, we just assign
 				if matches[counter]["files"] != "" {
+					foundNumbers = true
 					subject.File, _ = strconv.Atoi(matches[counter]["file"])
 					subject.TotalFiles, _ = strconv.Atoi(matches[counter]["totalfiles"])
 				} else if matches[counter]["segments"] != "" { // we have either [files] or (segments) in a match but not both
+					foundNumbers = true
 					subject.Segment, _ = strconv.Atoi(matches[counter]["segment"])
 					subject.TotalSegments, _ = strconv.Atoi(matches[counter]["totalsegments"])
 				}
 			} else if subject.TotalFiles == 0 || subject.TotalSegments == 0 {
 				// one of them is already assigned, we do some checks
 				if matches[counter]["files"] != "" {
+					foundNumbers = true
 					// check if we have already assigned the file numbers
 					// if yes, probably both, files and segments used square brackets
 					// in this case we assume that segment numbers are at the end
@@ -70,6 +74,7 @@ func ParseSubject(s string) (Subject, error) {
 						subject.TotalFiles, _ = strconv.Atoi(matches[counter]["totalfiles"])
 					}
 				} else if matches[counter]["segments"] != "" { // we have either [files] or (segments) in a match but not both
+					foundNumbers = true
 					// check if we have already assigned the segment numbers
 					// if yes, probably both, files and segments used round brackets
 					// in this case we assume that segment numbers are at the end
@@ -87,6 +92,10 @@ func ParseSubject(s string) (Subject, error) {
 		// combine the remainders of the matches for further parsing
 		for counter := 0; counter <= len(matches)-1; counter++ {
 			remainder = strings.TrimSpace(remainder + " " + strings.TrimSpace(matches[counter]["remainder"]))
+		}
+		// if no numbers were found at all, fall back to using the full subject as remainder
+		if !foundNumbers && strings.TrimSpace(remainder) == "" {
+			remainder = subject.Subject
 		}
 	} else {
 		// if we had no match we use the full subject for further parsing

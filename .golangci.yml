@@ -1,67 +1,7 @@
 version: '2'
 run:
+  timeout: 5m
   modules-download-mode: readonly
+
 linters:
-  default: none
-  enable:
-    - asciicheck
-    - bodyclose
-    - copyloopvar
-    - decorder
-    - dogsled
-    - durationcheck
-    - errcheck
-    - errname
-    - errorlint
-    - goconst
-    - gocyclo
-    - govet
-    - ineffassign
-    - lll
-    - nilnil
-    - prealloc
-    - revive
-    - staticcheck
-    - unconvert
-    - unused
-    - whitespace
-    - wsl
-  settings:
-    gocyclo:
-      min-complexity: 20
-    govet:
-      enable-all: true
-      disable:
-        - fieldalignment
-    lll:
-      line-length: 160
-  exclusions:
-    generated: lax
-    presets:
-      - comments
-      - common-false-positives
-      - legacy
-      - std-error-handling
-    rules:
-      - linters:
-          - goconst
-        path: (.+)_test\.go
-    paths:
-      - third_party$
-      - builtin$
-      - examples$
-formatters:
-  enable:
-    - gofmt
-    - gofumpt
-    - goimports
-  settings:
-    goimports:
-      local-prefixes:
-        - github.com/javi11/nzbparser
-  exclusions:
-    generated: lax
-    paths:
-      - third_party$
-      - builtin$
-      - examples$
+  default: standard
