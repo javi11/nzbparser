@@ -71,6 +71,14 @@ func TestParseSubject(t *testing.T) {
 			base:   "Release.Name",
 			file:   3, totalF: 120, seg: 3, totalS: 140,
 		},
+		{
+			name:   "bracket-enclosed filename with empty quotes",
+			input:  `[PRiVATE]-[WtFnZb]-[het.blok.s09e44.dutch.1080p.web.h264-tripel.r10]-[13/21] - "" yEnc  100000000 (1/140)`,
+			header: "het.blok.s09e44.dutch.1080p.web.h264-tripel",
+			fname:  "het.blok.s09e44.dutch.1080p.web.h264-tripel.r10",
+			base:   "het.blok.s09e44.dutch.1080p.web.h264-tripel",
+			file:   13, totalF: 21, seg: 1, totalS: 140,
+		},
 	}
 
 	for _, c := range cases {

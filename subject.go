@@ -217,6 +217,25 @@ func ParseSubject(s string) (Subject, error) {
 		}
 	}
 
+	// Additional handling: some subjects have the filename within square brackets instead of quotes
+	// Example: [PRiVATE]-[WtFnZb]-[test.h264-tripel.r10]-[13/21] - "" yEnc
+	if subject.Filename == "" {
+		bracketRE := regexp.MustCompile(`\[(?P<filename>(?P<basefilename>[^\[\]/]+?)\.(?: 7z\.)?(?:vol\d+\+\d+\.par2?|part\d+\.[^\s\"\.\[\]]*|r\d{2,3}|[^\s\"\.\[\]]+))\]`)
+		bracketMatches := findAllNamedMatches(bracketRE, remainder)
+		if bracketMatches != nil {
+			// Use the last match (typically right before file numbers)
+			for i := len(bracketMatches) - 1; i >= 0; i-- {
+				if bracketMatches[i]["filename"] != "" {
+					subject.Filename = strings.Trim(bracketMatches[i]["filename"], " -")
+					subject.Basefilename = strings.Trim(bracketMatches[i]["basefilename"], " -")
+					// Update header to use basefilename instead of bracket-filled text
+					subject.Header = subject.Basefilename
+					break
+				}
+			}
+		}
+	}
+
 	// if header is empty use the basefilename as header
 	if subject.Header == "" && subject.Basefilename != "" {
 		subject.Header = subject.Basefilename
