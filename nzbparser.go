@@ -18,6 +18,11 @@ const (
 	Xmlns = "http://www.newzbin.com/DTD/2003/nzb"
 )
 
+// ParseOptions allows configuration of the NZB parsing behavior
+type ParseOptions struct {
+	RemoveDuplicates bool // whether to remove duplicate files and segments
+}
+
 // nzb file structure with additional information
 type Nzb struct {
 	Comment       string            // comment tag
@@ -70,8 +75,18 @@ func ParseString(data string) (*Nzb, error) {
 	return Parse(bytes.NewBufferString(data))
 }
 
-// parese nzb file provided as io.Reader buffer
+// parse nzb file provided as string with custom options
+func ParseStringWithOptions(data string, opts ParseOptions) (*Nzb, error) {
+	return ParseWithOptions(bytes.NewBufferString(data), opts)
+}
+
+// parse nzb file provided as io.Reader buffer
 func Parse(buf io.Reader) (*Nzb, error) {
+	return ParseWithOptions(buf, ParseOptions{RemoveDuplicates: true})
+}
+
+// parse nzb file provided as io.Reader buffer with custom options
+func ParseWithOptions(buf io.Reader, opts ParseOptions) (*Nzb, error) {
 	// parse nzb file into temp structure
 	xnzb := new(xNzb)
 	decoder := xml.NewDecoder(buf)
@@ -95,8 +110,10 @@ func Parse(buf io.Reader) (*Nzb, error) {
 		nzb.Meta[md.Type] = md.Value
 	}
 
-	// remove duplicate entries
-	MakeUnique(nzb)
+	// conditionally remove duplicate entries
+	if opts.RemoveDuplicates {
+		MakeUnique(nzb)
+	}
 
 	// scan the nzb for the additional information
 	ScanNzbFile(nzb)
