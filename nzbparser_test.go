@@ -425,15 +425,15 @@ func TestMakeUnique(t *testing.T) {
 				},
 			},
 			{
-				Subject: "Test Subject", // Same subject, should be merged
+				Subject: "Test Subject", // Same subject, should be discarded (first occurrence kept)
 				Segments: []NzbSegment{
 					{
-						ID:     "segment-2", // Duplicate segment, should be removed
+						ID:     "segment-2", // Duplicate segment
 						Number: 2,
 						Bytes:  2000,
 					},
 					{
-						ID:     "segment-3",
+						ID:     "segment-3", // Will be discarded along with the duplicate file
 						Number: 3,
 						Bytes:  3000,
 					},
@@ -459,19 +459,23 @@ func TestMakeUnique(t *testing.T) {
 		t.Fatalf("Expected 2 files after MakeUnique, got %d", len(nzb.Files))
 	}
 
-	// First file should have 3 unique segments
-	if len(nzb.Files[0].Segments) != 3 {
-		t.Errorf("Expected 3 segments in first file, got %d", len(nzb.Files[0].Segments))
+	// First file should have 2 segments (only from first occurrence, duplicate file discarded)
+	if len(nzb.Files[0].Segments) != 2 {
+		t.Errorf("Expected 2 segments in first file, got %d", len(nzb.Files[0].Segments))
 	}
 
-	// Check that segments are correct
+	// Check that segments are correct (segment-3 should not be present as duplicate file was discarded)
 	segmentIDs := make(map[string]bool)
 	for _, seg := range nzb.Files[0].Segments {
 		segmentIDs[seg.ID] = true
 	}
 
-	if !segmentIDs["segment-1"] || !segmentIDs["segment-2"] || !segmentIDs["segment-3"] {
+	if !segmentIDs["segment-1"] || !segmentIDs["segment-2"] {
 		t.Errorf("Missing expected segments, got: %v", segmentIDs)
+	}
+
+	if segmentIDs["segment-3"] {
+		t.Errorf("segment-3 should not be present (duplicate file was discarded)")
 	}
 
 	// Second file should have 1 segment

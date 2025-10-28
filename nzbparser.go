@@ -220,22 +220,20 @@ func ScanNzbFile(nzb *Nzb) {
 	nzb.Bytes = totalBytes
 }
 
-// clean up nzb files by merging duplicate file entries and removing duplicate segments
+// clean up nzb files by keeping only the first occurrence of duplicate file entries and removing duplicate segments
 func MakeUnique(nzb *Nzb) {
-	// check for duplicate file entries and combine segments
+	// check for duplicate file entries and keep only the first occurrence
 	var uniqueFiles []NzbFile
 
 	fileKeys := make(map[string]int) // helper map for unique keys
 	for _, file := range nzb.Files {
-		if i, ok := fileKeys[file.Subject]; ok {
-			// file already found
-			// append segments to previous match
-			uniqueFiles[i].Segments = append(uniqueFiles[i].Segments, file.Segments...)
-		} else {
-			// Unique file found. Record position and collect in result.
-			fileKeys[file.Subject] = len(uniqueFiles)
-			uniqueFiles = append(uniqueFiles, file)
+		if _, ok := fileKeys[file.Subject]; ok {
+			// file already found, skip it (discard duplicate and its segments)
+			continue
 		}
+		// Unique file found. Record position and collect in result.
+		fileKeys[file.Subject] = len(uniqueFiles)
+		uniqueFiles = append(uniqueFiles, file)
 	}
 
 	nzb.Files = uniqueFiles
