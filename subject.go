@@ -135,7 +135,8 @@ func ParseSubject(s string) (Subject, error) {
 		subject.Basefilename = strings.Trim(matches[0]["basefilename"], " -")
 	} else {
 		// if no filename was found between quotes, we assume the whole remaining subject is the filename and we only search for an extension
-		r = regexp.MustCompile(`(?i)^(?P<filename>(?P<basefilename>.*?)\.(?P<extension>(?:vol\d+\+\d+\.par2?|part\d+\.[^ "\.]*|[^ "\.]*\.\d+|[^ "\.]*))(?:[" ]|$))`)
+		// Use greedy matching (.*) to prefer the LAST occurrence of a known extension, avoiding false matches on dots in the middle of filenames
+		r = regexp.MustCompile(`(?i)^(?P<filename>(?P<basefilename>.*)\.(?P<extension>(?:vol\d+\+\d+\.par2?|part\d+\.rar|r\d{2,3}|mkv|avi|mp4|mov|wmv|flv|webm|m4v|mpg|mpeg|rar|zip|7z|tar|gz|bz2|nfo|sfv|par2?|txt|md|log|jpg|jpeg|png|gif|bmp|svg|pdf|doc|docx|xls|xlsx|ppt|pptx|mp3|flac|m4a|wav|ogg|aac|wma)))(?:\s|$)`)
 		matches = findAllNamedMatches(r, remainder)
 		if matches != nil {
 			subject.Filename = strings.Trim(matches[0]["filename"], " -")

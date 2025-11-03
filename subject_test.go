@@ -17,10 +17,10 @@ func TestParseSubject(t *testing.T) {
 	}{
 		{
 			name:   "unicode and hyphenated suffix mkv",
-			input:  `Volt.Star.Malgré.Lui.2008.1080p.BluRay.Remux.AVC.Multi.VFF.DTS.5.1.DTS-HD.MA.5.1-GOLDEN.mkv`,
-			header: "Volt.Star.Malgré.Lui.2008.1080p.BluRay.Remux.AVC.Multi.VFF.DTS.5.1.DTS-HD.MA.5.1-GOLDEN",
-			fname:  "Volt.Star.Malgré.Lui.2008.1080p.BluRay.Remux.AVC.Multi.VFF.DTS.5.1.DTS-HD.MA.5.1-GOLDEN.mkv",
-			base:   "Volt.Star.Malgré.Lui.2008.1080p.BluRay.Remux.AVC.Multi.VFF.DTS.5.1.DTS-HD.MA.5.1-GOLDEN",
+			input:  `Volt.Test.Smth.Lui.2008.1080p.BluRay.Remux.AVC.Multi.VFF.DTS.5.1.DTS-HD.MA.5.1-TEST.mkv`,
+			header: "Volt.Test.Smth.Lui.2008.1080p.BluRay.Remux.AVC.Multi.VFF.DTS.5.1.DTS-HD.MA.5.1-TEST",
+			fname:  "Volt.Test.Smth.Lui.2008.1080p.BluRay.Remux.AVC.Multi.VFF.DTS.5.1.DTS-HD.MA.5.1-TEST.mkv",
+			base:   "Volt.Test.Smth.Lui.2008.1080p.BluRay.Remux.AVC.Multi.VFF.DTS.5.1.DTS-HD.MA.5.1-TEST",
 			file:   1, totalF: 1, seg: 1, totalS: 1,
 		},
 		{
@@ -73,11 +73,19 @@ func TestParseSubject(t *testing.T) {
 		},
 		{
 			name:   "bracket-enclosed filename with empty quotes",
-			input:  `[PRiVATE]-[WtFnZb]-[het.blok.s09e44.dutch.1080p.web.h264-tripel.r10]-[13/21] - "" yEnc  100000000 (1/140)`,
-			header: "het.blok.s09e44.dutch.1080p.web.h264-tripel",
-			fname:  "het.blok.s09e44.dutch.1080p.web.h264-tripel.r10",
-			base:   "het.blok.s09e44.dutch.1080p.web.h264-tripel",
+			input:  `[PRiVATE]-[WtFnZb]-[het.smthign.s09e44.dutch.1080p.web.h264-test.r10]-[13/21] - "" yEnc  100000000 (1/140)`,
+			header: "het.smthign.s09e44.dutch.1080p.web.h264-test",
+			fname:  "het.smthign.s09e44.dutch.1080p.web.h264-test.r10",
+			base:   "het.smthign.s09e44.dutch.1080p.web.h264-test",
 			file:   13, totalF: 21, seg: 1, totalS: 140,
+		},
+		{
+			name:   "unquoted filename with multiple dots and mkv extension",
+			input:  `Test S01E02 ATVP WEB-DL 1080p DDP5.1 Atmos H264-something.mkv (1/0)`,
+			header: "Test S01E02 ATVP WEB-DL 1080p DDP5.1 Atmos H264-something",
+			fname:  "Test S01E02 ATVP WEB-DL 1080p DDP5.1 Atmos H264-something.mkv",
+			base:   "Test S01E02 ATVP WEB-DL 1080p DDP5.1 Atmos H264-something",
+			file:   1, totalF: 1, seg: 1, totalS: 1, // (1/0) is malformed, parser defaults to 1/1
 		},
 	}
 
