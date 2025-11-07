@@ -195,14 +195,14 @@ func ScanNzbFile(nzb *Nzb) {
 			}
 		}
 
-		for _, segment := range file.Segments {
+		for i, segment := range file.Segments {
 			if segment.Number > totalFileSegments {
 				totalFileSegments = segment.Number
 			}
 
 			totalBytes = totalBytes + int64(segment.Bytes)
 			totalFileBytes = totalFileBytes + int64(segment.Bytes)
-			segment.ID = html.UnescapeString(segment.ID)
+			nzb.Files[id].Segments[i].ID = html.UnescapeString(segment.ID)
 		}
 
 		segments = segments + file.Segments.Len()
