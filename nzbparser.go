@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/xml"
 	"fmt"
+	"html"
 	"io"
 	"sort"
 
@@ -201,6 +202,7 @@ func ScanNzbFile(nzb *Nzb) {
 
 			totalBytes = totalBytes + int64(segment.Bytes)
 			totalFileBytes = totalFileBytes + int64(segment.Bytes)
+			segment.ID = html.UnescapeString(segment.ID)
 		}
 
 		segments = segments + file.Segments.Len()

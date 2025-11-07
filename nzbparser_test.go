@@ -672,3 +672,55 @@ func TestWriteWithEmptyComment(t *testing.T) {
 		t.Errorf("Expected empty comment, got '%s'", parsedNzb.Comment)
 	}
 }
+
+func TestSegmentIDUnescaping(t *testing.T) {
+	// Test that segment IDs with HTML entities are properly unescaped
+	nzbWithEntities := Header + `<nzb xmlns="http://www.newzbin.com/DTD/2003/nzb">
+  <file poster="test@example.com" date="1234567890" subject="Test Subject">
+    <groups>
+      <group>alt.test</group>
+    </groups>
+    <segments>
+      <segment bytes="1234" number="1">segment&amp;1</segment>
+      <segment bytes="2345" number="2">test&lt;id&gt;</segment>
+      <segment bytes="3456" number="3">id&quot;quoted&quot;</segment>
+      <segment bytes="4567" number="4">complex&amp;test&lt;&gt;&quot;mixed</segment>
+    </segments>
+  </file>
+</nzb>`
+
+	nzb, err := ParseString(nzbWithEntities)
+	if err != nil {
+		t.Fatalf("ParseString failed: %v", err)
+	}
+
+	if len(nzb.Files) != 1 {
+		t.Fatalf("Expected 1 file, got %d", len(nzb.Files))
+	}
+
+	file := nzb.Files[0]
+
+	if len(file.Segments) != 4 {
+		t.Fatalf("Expected 4 segments, got %d", len(file.Segments))
+	}
+
+	// Test cases for HTML entity unescaping
+	testCases := []struct {
+		segmentIndex int
+		expectedID   string
+		description  string
+	}{
+		{0, "segment&1", "ampersand entity should be unescaped"},
+		{1, "test<id>", "less-than and greater-than entities should be unescaped"},
+		{2, "id\"quoted\"", "quote entities should be unescaped"},
+		{3, "complex&test<>\"mixed", "multiple mixed entities should be unescaped"},
+	}
+
+	for _, tc := range testCases {
+		actualID := file.Segments[tc.segmentIndex].ID
+		if actualID != tc.expectedID {
+			t.Errorf("Segment %d: %s - expected %q, got %q",
+				tc.segmentIndex+1, tc.description, tc.expectedID, actualID)
+		}
+	}
+}
