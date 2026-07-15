@@ -229,12 +229,21 @@ func MakeUnique(nzb *Nzb) {
 
 	fileKeys := make(map[string]int) // helper map for unique keys
 	for _, file := range nzb.Files {
-		if _, ok := fileKeys[file.Subject]; ok {
+		// A file's identity is the message-id of its first segment, which is
+		// globally unique per Usenet article. Obfuscated posts frequently give
+		// distinct volumes an identical subject line, so keying on the subject
+		// alone wrongly discards genuinely different files. Fall back to the
+		// subject only when a file carries no segments.
+		key := file.Subject
+		if len(file.Segments) > 0 {
+			key = file.Segments[0].ID
+		}
+		if _, ok := fileKeys[key]; ok {
 			// file already found, skip it (discard duplicate and its segments)
 			continue
 		}
 		// Unique file found. Record position and collect in result.
-		fileKeys[file.Subject] = len(uniqueFiles)
+		fileKeys[key] = len(uniqueFiles)
 		uniqueFiles = append(uniqueFiles, file)
 	}
 

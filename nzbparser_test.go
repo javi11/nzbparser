@@ -425,12 +425,14 @@ func TestMakeUnique(t *testing.T) {
 				},
 			},
 			{
-				Subject: "Test Subject", // Same subject, should be discarded (first occurrence kept)
+				// Genuine duplicate: same first-segment message-id as the first file,
+				// so it (and its extra segment-3) is discarded, first occurrence kept.
+				Subject: "Test Subject",
 				Segments: []NzbSegment{
 					{
-						ID:     "segment-2", // Duplicate segment
-						Number: 2,
-						Bytes:  2000,
+						ID:     "segment-1", // Same first-segment id -> true duplicate file
+						Number: 1,
+						Bytes:  1000,
 					},
 					{
 						ID:     "segment-3", // Will be discarded along with the duplicate file
@@ -481,6 +483,58 @@ func TestMakeUnique(t *testing.T) {
 	// Second file should have 1 segment
 	if len(nzb.Files[1].Segments) != 1 {
 		t.Errorf("Expected 1 segment in second file, got %d", len(nzb.Files[1].Segments))
+	}
+}
+
+// TestMakeUniqueDistinctSameSubject guards against the obfuscated multi-volume
+// regression: distinct files (distinct first-segment message-ids) that happen to
+// share an identical subject must all be kept, while true duplicates (matching
+// first-segment id) are still removed. Files without segments fall back to the
+// subject key.
+func TestMakeUniqueDistinctSameSubject(t *testing.T) {
+	nzb := &Nzb{
+		Files: []NzbFile{
+			// Three distinct volumes with a byte-identical obfuscated subject.
+			{
+				Subject:  "dc191ae7fb6a76988f477bdf75f9eb3b (1/200)",
+				Segments: []NzbSegment{{ID: "vol1-seg1", Number: 1, Bytes: 1000}},
+			},
+			{
+				Subject:  "dc191ae7fb6a76988f477bdf75f9eb3b (1/200)",
+				Segments: []NzbSegment{{ID: "vol2-seg1", Number: 1, Bytes: 1000}},
+			},
+			{
+				Subject:  "dc191ae7fb6a76988f477bdf75f9eb3b (1/200)",
+				Segments: []NzbSegment{{ID: "vol3-seg1", Number: 1, Bytes: 1000}},
+			},
+			// A genuine duplicate of the first volume (same first-segment id).
+			{
+				Subject:  "dc191ae7fb6a76988f477bdf75f9eb3b (1/200)",
+				Segments: []NzbSegment{{ID: "vol1-seg1", Number: 1, Bytes: 1000}},
+			},
+			// A file with no segments falls back to subject-based dedup.
+			{Subject: "no-segments-sidecar"},
+			{Subject: "no-segments-sidecar"},
+		},
+	}
+
+	MakeUnique(nzb)
+
+	// 3 distinct volumes + 1 no-segment sidecar = 4 kept.
+	if len(nzb.Files) != 4 {
+		t.Fatalf("Expected 4 files after MakeUnique, got %d", len(nzb.Files))
+	}
+
+	firstSegIDs := make(map[string]bool)
+	for _, f := range nzb.Files {
+		if len(f.Segments) > 0 {
+			firstSegIDs[f.Segments[0].ID] = true
+		}
+	}
+	for _, want := range []string{"vol1-seg1", "vol2-seg1", "vol3-seg1"} {
+		if !firstSegIDs[want] {
+			t.Errorf("expected distinct volume %q to be kept", want)
+		}
 	}
 }
 
