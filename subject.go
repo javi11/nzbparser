@@ -6,6 +6,36 @@ import (
 	"strings"
 )
 
+// The regular expressions, compiled once: ParseSubject compiled them on every
+// call (~80 µs and ~250 allocations per subject).
+var (
+	// file and segment numbers, [X/Y] and (X/Y)
+	reNumbers = regexp.MustCompile(`(?i)(?:(?P<remainder>.*?) *(?:(?P<files>(?:"?\[|[<[]? *)(?P<file>\d+) */ *(?P<totalfiles>\d+) *(?:\]"?|[>\]])?)|(?P<segments>"?\((?P<segment>\d+) */ *(?P<totalsegments>\d+)\)"?))|.*$)`)
+	// "x of y" file numbers
+	reXofY = regexp.MustCompile(`(?i)(?:(?P<remainder1>.*?) *(?P<files>(?:\[|[<[]? *(?:file|datei)?) *(?P<file>\d+) *(?:of|von) *(?P<totalfiles>\d+) *(?:\]|[>\]])?)(?P<remainder2>.*$))`)
+	// a filename between quotes, the header before it
+	reQuotedName = regexp.MustCompile(`(?i)^(?P<header>.*?)?[- ]*"+(?P<filename>(?P<basefilename>.*?)(?:\.(?P<extension>(?:7z\.)?(?:vol\d+\+\d+\.par2?|part\d+\.[^ "\.]*|[^ "\.]*\.\d+|[^ "\.]*)))?)"+`)
+	// an unquoted filename with a known extension (greedy: the last one)
+	reKnownExt = regexp.MustCompile(`(?i)^(?P<filename>(?P<basefilename>.*)\.(?P<extension>(?:vol\d+\+\d+\.par2?|part\d+\.rar|r\d{2,3}|mkv|avi|mp4|mov|wmv|flv|webm|m4v|mpg|mpeg|rar|zip|7z|tar|gz|bz2|nfo|sfv|par2?|txt|md|log|jpg|jpeg|png|gif|bmp|svg|pdf|doc|docx|xls|xlsx|ppt|pptx|mp3|flac|m4a|wav|ogg|aac|wma)))(?:\s|$)`)
+	// every quoted string
+	reQuoted = regexp.MustCompile(`"([^\"]+)"`)
+	// a quoted candidate that has an extension
+	reFileWithExt = regexp.MustCompile(`(?i)^(?P<basefilename>.*?)\.(?:7z\.)?(?:vol\d+\+\d+\.par2?|part\d+\.[^ "\.]*|[^ "\.]*\.\d+|[^ "\.]*?)$`)
+	// rXX archive volume extensions
+	reDynArchive = regexp.MustCompile(`(?i)r\d{2}$`)
+	// a quoted candidate with a real archive/media extension
+	reCandidate = regexp.MustCompile(`(?i)^(?P<base>.+?)\.(?P<ext>(?:vol\d+\+\d+\.par2|par2|part\d+\.rar|r\d{2}|rar|nfo|sfv|zip|7z|mp4|mkv|avi|mov|mp3|flac|m4a|jpg|jpeg|png|gif|pdf|txt))$`)
+	// a filename in square brackets
+	reBracketName = regexp.MustCompile(`\[(?P<filename>(?P<basefilename>[^\[\]/]+?)\.(?: 7z\.)?(?:vol\d+\+\d+\.par2?|part\d+\.[^\s\"\.\[\]]*|r\d{2,3}|[^\s\"\.\[\]]+))\]`)
+	// leading number pairs and the rest of the subject
+	reLeadBrackets = regexp.MustCompile(`^(?: *(?:"?\[|[<[]?)\d+ */ *\d+ *(?:\]"?|[>\]])?)+ *(?P<tail>.*)$`)
+	// a quoted filename in that rest
+	reQuotedTail = regexp.MustCompile(`(?i)"+(?P<filename>(?P<basefilename>.*?)(?:\.(?P<extension>(?:7z\.)?(?:vol\d+\+\d+\.par2?|part\d+\.[^ "\.]*|[^ "\.]*\.\d+|[^ "\.]*)))?)"+`)
+)
+
+// extensions the refinement below treats as real file extensions
+var knownExt = map[string]struct{}{"rar": {}, "r00": {}, "r01": {}, "r02": {}, "par2": {}, "nfo": {}, "sfv": {}, "zip": {}, "7z": {}, "mp4": {}, "mkv": {}, "avi": {}, "mov": {}, "mp3": {}, "flac": {}, "m4a": {}, "jpg": {}, "jpeg": {}, "png": {}, "gif": {}, "pdf": {}, "txt": {}, "r03": {}, "r04": {}, "r05": {}}
+
 type Subject struct {
 	Subject       string // full subject
 	Header        string // header (remaining text before the filename)
@@ -34,7 +64,7 @@ func ParseSubject(s string) (Subject, error) {
 	// we also assume that max. two number pairs are present (segment numbers or segment and file numbers)
 	// we further assume that if both number pairs are present the last one are the segment numbers,
 	// and that no relevant info apperars in the subject after them (usualy only "yEnc" and the size is stated after the segment numbers)
-	r := regexp.MustCompile(`(?i)(?:(?P<remainder>.*?) *(?:(?P<files>(?:"?\[|[<[]? *)(?P<file>\d+) */ *(?P<totalfiles>\d+) *(?:\]"?|[>\]])?)|(?P<segments>"?\((?P<segment>\d+) */ *(?P<totalsegments>\d+)\)"?))|.*$)`)
+	r := reNumbers
 	matches := findAllNamedMatches(r, subject.Subject)
 	foundNumbers := false
 	if matches != nil {
@@ -44,12 +74,12 @@ func ParseSubject(s string) (Subject, error) {
 				// if neither segments nor files are assigned yet, we just assign
 				if matches[counter]["files"] != "" {
 					foundNumbers = true
-					subject.File, _ = strconv.Atoi(matches[counter]["file"])
-					subject.TotalFiles, _ = strconv.Atoi(matches[counter]["totalfiles"])
+					subject.File = num(matches[counter]["file"])
+					subject.TotalFiles = num(matches[counter]["totalfiles"])
 				} else if matches[counter]["segments"] != "" { // we have either [files] or (segments) in a match but not both
 					foundNumbers = true
-					subject.Segment, _ = strconv.Atoi(matches[counter]["segment"])
-					subject.TotalSegments, _ = strconv.Atoi(matches[counter]["totalsegments"])
+					subject.Segment = num(matches[counter]["segment"])
+					subject.TotalSegments = num(matches[counter]["totalsegments"])
 				}
 			} else if subject.TotalFiles == 0 || subject.TotalSegments == 0 {
 				// one of them is already assigned, we do some checks
@@ -67,11 +97,11 @@ func ParseSubject(s string) (Subject, error) {
 					// if not, probably only segment numbers are present but use square brackets
 					// in this case we assign the "file" numbers to the segments
 					if subject.TotalSegments == 0 {
-						subject.Segment, _ = strconv.Atoi(matches[counter]["file"])
-						subject.TotalSegments, _ = strconv.Atoi(matches[counter]["totalfiles"])
+						subject.Segment = num(matches[counter]["file"])
+						subject.TotalSegments = num(matches[counter]["totalfiles"])
 					} else {
-						subject.File, _ = strconv.Atoi(matches[counter]["file"])
-						subject.TotalFiles, _ = strconv.Atoi(matches[counter]["totalfiles"])
+						subject.File = num(matches[counter]["file"])
+						subject.TotalFiles = num(matches[counter]["totalfiles"])
 					}
 				} else if matches[counter]["segments"] != "" { // we have either [files] or (segments) in a match but not both
 					foundNumbers = true
@@ -80,11 +110,11 @@ func ParseSubject(s string) (Subject, error) {
 					// in this case we assume that segment numbers are at the end
 					// and assign these "segment" numbers to the files
 					if subject.TotalSegments != 0 {
-						subject.File, _ = strconv.Atoi(matches[counter]["segment"])
-						subject.TotalFiles, _ = strconv.Atoi(matches[counter]["totalsegments"])
+						subject.File = num(matches[counter]["segment"])
+						subject.TotalFiles = num(matches[counter]["totalsegments"])
 					} else {
-						subject.Segment, _ = strconv.Atoi(matches[counter]["segment"])
-						subject.TotalSegments, _ = strconv.Atoi(matches[counter]["totalsegments"])
+						subject.Segment = num(matches[counter]["segment"])
+						subject.TotalSegments = num(matches[counter]["totalsegments"])
 					}
 				}
 			}
@@ -110,11 +140,11 @@ func ParseSubject(s string) (Subject, error) {
 	// check if we have found some file numbers
 	if subject.TotalFiles == 0 {
 		// if no file numbers were found we first try some edge cases like "x of y"
-		r := regexp.MustCompile(`(?i)(?:(?P<remainder1>.*?) *(?P<files>(?:\[|[<[]? *(?:file|datei)?) *(?P<file>\d+) *(?:of|von) *(?P<totalfiles>\d+) *(?:\]|[>\]])?)(?P<remainder2>.*$))`)
+		r := reXofY
 		matches := findAllNamedMatches(r, remainder)
 		if matches != nil && matches[0]["files"] != "" {
-			subject.File, _ = strconv.Atoi(matches[0]["file"])
-			subject.TotalFiles, _ = strconv.Atoi(matches[0]["totalfiles"])
+			subject.File = num(matches[0]["file"])
+			subject.TotalFiles = num(matches[0]["totalfiles"])
 			remainder = strings.TrimSpace(strings.TrimSpace(matches[0]["remainder1"]) + " " + strings.TrimSpace(matches[0]["remainder2"]))
 		} else {
 			// if still nothing was found, we assume it is a single file post
@@ -127,7 +157,7 @@ func ParseSubject(s string) (Subject, error) {
 	// we first assume that the filename is between quotes and may or may not end with an extension
 	// we also assume that there is no more relevant information after the filename
 	// everything before the filename is considered to be the header
-	r = regexp.MustCompile(`(?i)^(?P<header>.*?)?[- ]*"+(?P<filename>(?P<basefilename>.*?)(?:\.(?P<extension>(?:7z\.)?(?:vol\d+\+\d+\.par2?|part\d+\.[^ "\.]*|[^ "\.]*\.\d+|[^ "\.]*)))?)"+`)
+	r = reQuotedName
 	matches = findAllNamedMatches(r, remainder)
 	if matches != nil {
 		subject.Header = strings.Trim(matches[0]["header"], " -")
@@ -136,7 +166,7 @@ func ParseSubject(s string) (Subject, error) {
 	} else {
 		// if no filename was found between quotes, we assume the whole remaining subject is the filename and we only search for an extension
 		// Use greedy matching (.*) to prefer the LAST occurrence of a known extension, avoiding false matches on dots in the middle of filenames
-		r = regexp.MustCompile(`(?i)^(?P<filename>(?P<basefilename>.*)\.(?P<extension>(?:vol\d+\+\d+\.par2?|part\d+\.rar|r\d{2,3}|mkv|avi|mp4|mov|wmv|flv|webm|m4v|mpg|mpeg|rar|zip|7z|tar|gz|bz2|nfo|sfv|par2?|txt|md|log|jpg|jpeg|png|gif|bmp|svg|pdf|doc|docx|xls|xlsx|ppt|pptx|mp3|flac|m4a|wav|ogg|aac|wma)))(?:\s|$)`)
+		r = reKnownExt
 		matches = findAllNamedMatches(r, remainder)
 		if matches != nil {
 			subject.Filename = strings.Trim(matches[0]["filename"], " -")
@@ -154,11 +184,11 @@ func ParseSubject(s string) (Subject, error) {
 	// Example: [04/23] "Release.Name" - "release.name.r00" - yEnc(1/140)
 	// If we only captured a filename without extension while there are multiple quoted strings, prefer the later quoted string that has an extension.
 	if subject.Filename != "" && subject.Filename == subject.Basefilename { // no extension captured
-		quoteRE := regexp.MustCompile(`"([^\"]+)"`)
+		quoteRE := reQuoted
 		quoted := quoteRE.FindAllStringSubmatch(remainder, -1)
 		if len(quoted) > 1 {
 			// pattern to detect filename with extension (reuse existing extension logic)
-			fileWithExtRE := regexp.MustCompile(`(?i)^(?P<basefilename>.*?)\.(?:7z\.)?(?:vol\d+\+\d+\.par2?|part\d+\.[^ "\.]*|[^ "\.]*\.\d+|[^ "\.]*?)$`)
+			fileWithExtRE := reFileWithExt
 			for i := 1; i < len(quoted); i++ { // skip first, as it was already treated as filename/header
 				candidate := strings.TrimSpace(quoted[i][1])
 				m := fileWithExtRE.FindStringSubmatch(candidate)
@@ -186,7 +216,7 @@ func ParseSubject(s string) (Subject, error) {
 
 	// Heuristic: even if we captured an extension, determine if it's a real file extension. If not and multiple quoted strings exist, try to pick a better candidate (e.g. second quoted string with real archive/media extension)
 	if subject.Filename != "" { // attempt refinement
-		quoteRE := regexp.MustCompile(`"([^\"]+)"`)
+		quoteRE := reQuoted
 		quoted := quoteRE.FindAllStringSubmatch(remainder, -1)
 		if len(quoted) > 1 {
 			// Extract extension from current filename
@@ -196,12 +226,11 @@ func ParseSubject(s string) (Subject, error) {
 			if idx != -1 {
 				curExt = strings.ToLower(cur[idx+1:])
 			}
-			known := map[string]struct{}{"rar": {}, "r00": {}, "r01": {}, "r02": {}, "par2": {}, "nfo": {}, "sfv": {}, "zip": {}, "7z": {}, "mp4": {}, "mkv": {}, "avi": {}, "mov": {}, "mp3": {}, "flac": {}, "m4a": {}, "jpg": {}, "jpeg": {}, "png": {}, "gif": {}, "pdf": {}, "txt": {}, "r03": {}, "r04": {}, "r05": {}}
-			_, curKnown := known[curExt]
+			_, curKnown := knownExt[curExt]
 			// treat dynamic rXX, partXX.rar as known even if not enumerated
-			isDynamicArchive := regexp.MustCompile(`(?i)r\d{2}$`).MatchString(curExt)
+			isDynamicArchive := reDynArchive.MatchString(curExt)
 			if !curKnown && !isDynamicArchive { // try to find better candidate
-				candidateRE := regexp.MustCompile(`(?i)^(?P<base>.+?)\.(?P<ext>(?:vol\d+\+\d+\.par2|par2|part\d+\.rar|r\d{2}|rar|nfo|sfv|zip|7z|mp4|mkv|avi|mov|mp3|flac|m4a|jpg|jpeg|png|gif|pdf|txt))$`)
+				candidateRE := reCandidate
 				for i := 1; i < len(quoted); i++ { // skip first
 					cand := strings.TrimSpace(quoted[i][1])
 					if m := candidateRE.FindStringSubmatch(cand); m != nil {
@@ -221,7 +250,7 @@ func ParseSubject(s string) (Subject, error) {
 	// Additional handling: some subjects have the filename within square brackets instead of quotes
 	// Example: [PRiVATE]-[WtFnZb]-[test.h264-tripel.r10]-[13/21] - "" yEnc
 	if subject.Filename == "" {
-		bracketRE := regexp.MustCompile(`\[(?P<filename>(?P<basefilename>[^\[\]/]+?)\.(?: 7z\.)?(?:vol\d+\+\d+\.par2?|part\d+\.[^\s\"\.\[\]]*|r\d{2,3}|[^\s\"\.\[\]]+))\]`)
+		bracketRE := reBracketName
 		bracketMatches := findAllNamedMatches(bracketRE, remainder)
 		if bracketMatches != nil {
 			// Use the last match (typically right before file numbers)
@@ -244,7 +273,7 @@ func ParseSubject(s string) (Subject, error) {
 
 	// Fallback: if we still have no filename but there are quoted parts after leading bracket pairs, attempt to extract.
 	if subject.Filename == "" {
-		leadBrackets := regexp.MustCompile(`^(?: *(?:"?\[|[<[]?)\d+ */ *\d+ *(?:\]"?|[>\]])?)+ *(?P<tail>.*)$`)
+		leadBrackets := reLeadBrackets
 		if m := leadBrackets.FindStringSubmatch(subject.Subject); m != nil {
 			// identify tail index
 			idxTail := -1
@@ -257,7 +286,7 @@ func ParseSubject(s string) (Subject, error) {
 			if idxTail != -1 {
 				tail := strings.TrimSpace(m[idxTail])
 				// look for quoted filename in tail
-				q := regexp.MustCompile(`(?i)"+(?P<filename>(?P<basefilename>.*?)(?:\.(?P<extension>(?:7z\.)?(?:vol\d+\+\d+\.par2?|part\d+\.[^ "\.]*|[^ "\.]*\.\d+|[^ "\.]*)))?)"+`)
+				q := reQuotedTail
 				if qm := q.FindStringSubmatch(tail); qm != nil {
 					groups := make(map[string]string)
 					for i, val := range qm {
@@ -277,6 +306,17 @@ func ParseSubject(s string) (Subject, error) {
 
 	return subject, nil
 
+}
+
+// num converts a matched number. One that doesn't fit an int counts as
+// missing (0): strconv.Atoi returned the largest int, which ScanNzbFile sums
+// into TotalSegments and callers used as an allocation size.
+func num(s string) int {
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return 0
+	}
+	return n
 }
 
 // helper function for easier handling of named sub matches
