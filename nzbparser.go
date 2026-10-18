@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"encoding/xml"
 	"fmt"
-	"html"
 	"io"
 	"sort"
+	"strings"
 
 	"golang.org/x/net/html/charset"
 )
@@ -68,7 +68,7 @@ func (s NzbSegments) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 type NzbSegment struct {
 	Bytes  int    `xml:"bytes,attr"`
 	Number int    `xml:"number,attr"`
-	ID     string `xml:",innerxml"`
+	ID     string `xml:",chardata"` // the message-id, XML-decoded and trimmed
 }
 
 // parse nzb file provided as string
@@ -95,20 +95,29 @@ func ParseWithOptions(buf io.Reader, opts ParseOptions) (*Nzb, error) {
 	decoder.Strict = false // ignore unknown or malformed character entities
 
 	if err := decoder.Decode(xnzb); err != nil {
-		return nil, fmt.Errorf("unable to parse NZB file: %s", err.Error())
+		return nil, fmt.Errorf("unable to parse NZB file: %w", err)
 	}
 
 	// convert to nicer format
 	nzb := new(Nzb)
 
-	// copy elements
-	nzb.Comment = xnzb.Comment
+	// copy elements. Comment, ids, groups and meta values are trimmed: pretty
+	// printed NZBs put newlines around them, and Write pads the comment.
+	nzb.Comment = strings.TrimSpace(xnzb.Comment)
 	nzb.Files = xnzb.Files
+	for i := range nzb.Files {
+		for j := range nzb.Files[i].Groups {
+			nzb.Files[i].Groups[j] = strings.TrimSpace(nzb.Files[i].Groups[j])
+		}
+		for j := range nzb.Files[i].Segments {
+			nzb.Files[i].Segments[j].ID = strings.TrimSpace(nzb.Files[i].Segments[j].ID)
+		}
+	}
 
 	// convert metadata
 	nzb.Meta = make(map[string]string)
 	for _, md := range xnzb.Metadata {
-		nzb.Meta[md.Type] = md.Value
+		nzb.Meta[md.Type] = strings.TrimSpace(md.Value)
 	}
 
 	// conditionally remove duplicate entries
@@ -119,11 +128,12 @@ func ParseWithOptions(buf io.Reader, opts ParseOptions) (*Nzb, error) {
 	// scan the nzb for the additional information
 	ScanNzbFile(nzb)
 
-	// sort the files and segments
-	sort.Sort(nzb.Files)
+	// sort the files and segments; stable, so files without a number in the
+	// subject (all 1) and repeated segment numbers keep the NZB's order
+	sort.Stable(nzb.Files)
 
 	for id := range nzb.Files {
-		sort.Sort(nzb.Files[id].Segments)
+		sort.Stable(nzb.Files[id].Segments)
 	}
 
 	return nzb, nil
@@ -150,9 +160,14 @@ func Write(nzb *Nzb) ([]byte, error) {
 	// add namespace
 	xnzb.Xmlns = Xmlns
 
-	// add metadata
-	for t, v := range nzb.Meta {
-		xnzb.Metadata = append(xnzb.Metadata, xNzbMeta{Type: t, Value: v})
+	// add metadata, in a fixed order (map order made the output differ per run)
+	types := make([]string, 0, len(nzb.Meta))
+	for t := range nzb.Meta {
+		types = append(types, t)
+	}
+	sort.Strings(types)
+	for _, t := range types {
+		xnzb.Metadata = append(xnzb.Metadata, xNzbMeta{Type: t, Value: nzb.Meta[t]})
 	}
 
 	// Marshal and prepend header
@@ -187,6 +202,7 @@ func ScanNzbFile(nzb *Nzb) {
 			} else {
 				nzb.Files[id].Filename = subject.Header
 			}
+			nzb.Files[id].Basefilename = subject.Basefilename // was never set
 
 			totalFileSegments = subject.TotalSegments
 
@@ -195,14 +211,13 @@ func ScanNzbFile(nzb *Nzb) {
 			}
 		}
 
-		for i, segment := range file.Segments {
+		for _, segment := range file.Segments {
 			if segment.Number > totalFileSegments {
 				totalFileSegments = segment.Number
 			}
 
 			totalBytes = totalBytes + int64(segment.Bytes)
 			totalFileBytes = totalFileBytes + int64(segment.Bytes)
-			nzb.Files[id].Segments[i].ID = html.UnescapeString(segment.ID)
 		}
 
 		segments = segments + file.Segments.Len()
@@ -278,5 +293,5 @@ type xNzb struct {
 // temp raw meta data for (un)marshalling
 type xNzbMeta struct {
 	Type  string `xml:"type,attr"`
-	Value string `xml:",innerxml"`
+	Value string `xml:",chardata"`
 }
